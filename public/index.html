@@ -155,7 +155,7 @@
     <div class="ranking-empty" id="rankingEmpty" style="display:none;">Brak rozegranych meczów.</div>
     <div class="controls">
       <button id="backFromRankingBtn">Wróć</button>
-      <button id="clearRankingBtn">Wyczyść ranking</button>
+      <button id="clearRankingBtn" style="display:none;">Wyczyść ranking</button>
     </div>
   </div>
 </div>
@@ -275,10 +275,15 @@ resetBtn.addEventListener('click', () => {
 });
 
 rankingBtn.addEventListener('click', () => {
+  const isUnlockAttempt = mode === 'join' && codeInput.value.trim() === '1918';
+  clearRankingBtn.style.display = isUnlockAttempt ? 'inline-block' : 'none';
   send({ type: 'getRanking' });
   showScreen('ranking');
 });
-backFromRankingBtn.addEventListener('click', () => showScreen('menu'));
+backFromRankingBtn.addEventListener('click', () => {
+  clearRankingBtn.style.display = 'none';
+  showScreen('menu');
+});
 clearRankingBtn.addEventListener('click', () => send({ type: 'clearRanking' }));
 
 ws.addEventListener('message', (event) => {
