@@ -114,6 +114,18 @@
       <label for="codeInput">Kod pokoju</label>
       <input id="codeInput" type="text" maxlength="4" placeholder="np. A1B2" style="text-transform:uppercase;">
     </div>
+    <div id="createSettings" class="field">
+      <label id="startModeLabel">Kto zaczyna pierwszą rundę</label>
+      <div class="tabs">
+        <div class="tab active" id="optRandom">Losowo</div>
+        <div class="tab" id="optAlternate">Na zmianę</div>
+      </div>
+      <label id="loserStartsLabel" style="margin-top:10px;">Po wygranej rundzie zaczyna</label>
+      <div class="tabs">
+        <div class="tab active" id="optWinnerStarts">Zwycięzca</div>
+        <div class="tab" id="optLoserStarts">Przegrany</div>
+      </div>
+    </div>
     <div class="error-msg" id="menuError"></div>
     <div class="menu-actions">
       <button class="primary" id="goBtn">Stwórz pokój</button>
@@ -184,6 +196,11 @@ const menuError = document.getElementById('menuError');
 const rankingBtn = document.getElementById('rankingBtn');
 const codeDisplay = document.getElementById('codeDisplay');
 const cancelWaitBtn = document.getElementById('cancelWaitBtn');
+const createSettings = document.getElementById('createSettings');
+const optRandom = document.getElementById('optRandom');
+const optAlternate = document.getElementById('optAlternate');
+const optWinnerStarts = document.getElementById('optWinnerStarts');
+const optLoserStarts = document.getElementById('optLoserStarts');
 
 const boardEl = document.getElementById('board');
 const statusEl = document.getElementById('status');
@@ -207,6 +224,29 @@ let mode = 'create'; // 'create' | 'join'
 let mySymbol = null;
 let myRoomCode = null;
 let lastBoard = Array(9).fill(null);
+let startMode = 'random'; // 'random' | 'alternate'
+let loserStarts = false;
+
+optRandom.addEventListener('click', () => {
+  startMode = 'random';
+  optRandom.classList.add('active');
+  optAlternate.classList.remove('active');
+});
+optAlternate.addEventListener('click', () => {
+  startMode = 'alternate';
+  optAlternate.classList.add('active');
+  optRandom.classList.remove('active');
+});
+optWinnerStarts.addEventListener('click', () => {
+  loserStarts = false;
+  optWinnerStarts.classList.add('active');
+  optLoserStarts.classList.remove('active');
+});
+optLoserStarts.addEventListener('click', () => {
+  loserStarts = true;
+  optLoserStarts.classList.add('active');
+  optWinnerStarts.classList.remove('active');
+});
 
 function toggleTheme(){
   document.body.classList.toggle('light');
@@ -223,6 +263,7 @@ tabCreate.addEventListener('click', () => {
   tabCreate.classList.add('active');
   tabJoin.classList.remove('active');
   codeField.style.display = 'none';
+  createSettings.style.display = 'flex';
   goBtn.textContent = 'Stwórz pokój';
 });
 tabJoin.addEventListener('click', () => {
@@ -230,6 +271,7 @@ tabJoin.addEventListener('click', () => {
   tabJoin.classList.add('active');
   tabCreate.classList.remove('active');
   codeField.style.display = 'flex';
+  createSettings.style.display = 'none';
   goBtn.textContent = 'Dołącz';
 });
 
@@ -254,7 +296,7 @@ goBtn.addEventListener('click', () => {
   menuError.textContent = '';
   const name = nameInput.value.trim() || (mySymbol === 'O' ? 'Gracz O' : 'Gracz X');
   if(mode === 'create'){
-    send({ type: 'create', name });
+    send({ type: 'create', name, settings: { startMode, loserStarts } });
   } else {
     const code = codeInput.value.trim().toUpperCase();
     if(!code){ menuError.textContent = 'Wpisz kod pokoju.'; return; }
