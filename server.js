@@ -100,7 +100,23 @@ function freshRoom() {
     current: 'X',
     gameOver: false,
     scores: { X: 0, O: 0, D: 0 },
+    settings: { startMode: 'random', loserStarts: false },
+    roundStarter: null,
+    lastResult: null, // 'win' | 'draw' | null
+    lastLoser: null,
   };
+}
+
+function determineStarter(room, isFirstRound) {
+  if (!isFirstRound && room.settings.loserStarts && room.lastResult === 'win' && room.lastLoser) {
+    return room.lastLoser;
+  }
+  if (room.settings.startMode === 'alternate') {
+    if (room.roundStarter) return room.roundStarter === 'X' ? 'O' : 'X';
+    return 'X';
+  }
+  // 'random' (default)
+  return Math.random() < 0.5 ? 'X' : 'O';
 }
 
 function checkWin(board) {
@@ -149,6 +165,9 @@ wss.on('connection', (ws) => {
       const room = rooms[code];
       room.players.X = ws;
       room.names.X = (msg.name || 'Gracz X').slice(0, 16);
+      const startMode = msg.settings && msg.settings.startMode === 'alternate' ? 'alternate' : 'random';
+      const loserStarts = !!(msg.settings && msg.settings.loserStarts);
+      room.settings = { startMode, loserStarts };
       ws.roomCode = code;
       ws.symbol = 'X';
       send(ws, { type: 'created', code, symbol: 'X' });
@@ -170,8 +189,11 @@ wss.on('connection', (ws) => {
       room.names.O = (msg.name || 'Gracz O').slice(0, 16);
       ws.roomCode = code;
       ws.symbol = 'O';
+      const starter = determineStarter(room, true);
+      room.current = starter;
+      room.roundStarter = starter;
       send(ws, { type: 'joined', code, symbol: 'O' });
-      broadcastState(code, { status: 'Ruch gracza: ' + room.names.X });
+      broadcastState(code, { status: 'Ruch gracza: ' + room.names[starter] });
       return;
     }
 
@@ -188,8 +210,12 @@ wss.on('connection', (ws) => {
       if (winLine) {
         room.gameOver = true;
         room.scores[room.current]++;
-        const winnerName = room.names[room.current];
-        const loserName = room.names[room.current === 'X' ? 'O' : 'X'];
+        const winnerSymbol = room.current;
+        const loserSymbol = room.current === 'X' ? 'O' : 'X';
+        const winnerName = room.names[winnerSymbol];
+        const loserName = room.names[loserSymbol];
+        room.lastResult = 'win';
+        room.lastLoser = loserSymbol;
         recordResult(winnerName, loserName);
         broadcastState(ws.roomCode, { winLine, status: `Wygrywa ${winnerName}!`, finished: 'win' });
         return;
@@ -198,6 +224,8 @@ wss.on('connection', (ws) => {
       if (room.board.every((c) => c !== null)) {
         room.gameOver = true;
         room.scores.D++;
+        room.lastResult = 'draw';
+        room.lastLoser = null;
         recordDraw(room.names.X, room.names.O);
         broadcastState(ws.roomCode, { status: 'Remis!', finished: 'draw' });
         return;
@@ -211,10 +239,12 @@ wss.on('connection', (ws) => {
     if (msg.type === 'restart') {
       const room = rooms[ws.roomCode];
       if (!room) return;
+      const starter = determineStarter(room, false);
       room.board = Array(9).fill(null);
-      room.current = 'X';
+      room.current = starter;
+      room.roundStarter = starter;
       room.gameOver = false;
-      broadcastState(ws.roomCode, { status: 'Ruch gracza: ' + room.names.X });
+      broadcastState(ws.roomCode, { status: 'Ruch gracza: ' + room.names[starter] });
       return;
     }
 

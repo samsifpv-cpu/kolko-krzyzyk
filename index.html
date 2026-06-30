@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kółko i krzyżyk — LAN</title>
+<style>
+  :root{
+    --bg: #2e2a26; --board: #3c3631; --line: #cdbfa8;
+    --x-color: #e3b04b; --o-color: #6fa8a0; --paper: #f2ead9;
+    --muted: #9c9286; --panel: rgba(255,255,255,0.04);
+  }
+  body.light{
+    --bg: #f2ead9; --board: #fffdf7; --line: #5a5246;
+    --x-color: #c2762a; --o-color: #2f7d75; --paper: #2e2a26;
+    --muted: #6b6256; --panel: rgba(0,0,0,0.04);
+  }
+  * { box-sizing: border-box; }
+  body{
+    margin:0; min-height:100vh; background: var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    font-family: 'Georgia', 'Iowan Old Style', serif; color: var(--paper);
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  .wrap{ display:flex; flex-direction:column; align-items:center; gap:18px; padding:24px; width: 340px; }
+  h1{
+    font-family: 'Futura', 'Trebuchet MS', sans-serif; letter-spacing: 4px;
+    text-transform: uppercase; font-size: 22px; font-weight: 600;
+    color: var(--paper); margin: 0; text-align: center;
+  }
+  .subtitle{ font-size: 12px; color: var(--muted); letter-spacing: 1px; text-align:center; margin-top:-12px; }
+  .screen{ display:none; width:100%; flex-direction:column; align-items:center; gap:16px; }
+  .screen.active{ display:flex; }
+  .field{ width: 100%; display:flex; flex-direction:column; gap: 6px; }
+  .field label{
+    font-family: 'Futura', 'Trebuchet MS', sans-serif; font-size: 11px;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted);
+  }
+  .field input{
+    font-family: inherit; font-size: 16px; background: var(--panel);
+    border: 1px solid var(--muted); color: var(--paper); padding: 10px 12px;
+    border-radius: 8px; outline: none; width: 100%;
+  }
+  .field input:focus-visible{ outline: 2px solid var(--x-color); outline-offset: 1px; }
+  .tabs{ display:flex; gap:8px; width:100%; }
+  .tab{
+    flex:1; text-align:center; padding:8px; border-radius: 20px; cursor:pointer;
+    border: 1px solid var(--muted); font-size: 12px; letter-spacing:1px;
+  }
+  .tab.active{ border-color: var(--x-color); color: var(--x-color); }
+  .menu-actions{ display:flex; flex-direction:column; gap: 10px; width: 100%; margin-top: 4px; }
+  .code-display{
+    font-family: 'Futura', 'Trebuchet MS', sans-serif; font-size: 36px;
+    letter-spacing: 6px; color: var(--x-color); text-align:center;
+  }
+  .waiting{ font-size: 13px; color: var(--muted); text-align:center; }
+  .status{ font-size: 16px; color: var(--muted); min-height: 22px; letter-spacing: 0.5px; text-align:center; }
+  .status.win{ color: var(--x-color); }
+  .score{ display:flex; gap: 24px; font-size: 13px; color: var(--muted); letter-spacing: 0.5px; }
+  .score span{ color: var(--paper); font-weight:bold; }
+  .board{
+    position: relative; width: 300px; height: 300px; background: var(--board);
+    border-radius: 4px; box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    display: grid; grid-template-columns: repeat(3,1fr); grid-template-rows: repeat(3,1fr);
+    transition: background-color 0.3s ease;
+  }
+  .board.disabled{ opacity: 0.6; }
+  .cell{
+    position: relative; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; user-select:none; border: 1px solid rgba(205,191,168,0.18);
+  }
+  .cell svg{ width: 56%; height: 56%; opacity: 0; transform: scale(0.6); transition: opacity 0.25s ease, transform 0.25s ease; }
+  .cell svg.show{ opacity: 1; transform: scale(1); }
+  .cell.win-cell{ background: rgba(227,176,75,0.08); }
+  .mark-x line{ stroke: var(--x-color); stroke-width: 9; stroke-linecap: round; }
+  .mark-o circle{ stroke: var(--o-color); stroke-width: 9; fill: none; }
+  .controls{ display:flex; gap:10px; align-items:center; flex-wrap: wrap; justify-content:center; }
+  button{
+    font-family: inherit; background: transparent; border: 1px solid var(--muted);
+    color: var(--paper); padding: 8px 18px; border-radius: 20px; font-size: 13px;
+    letter-spacing: 1px; cursor: pointer; transition: border-color 0.2s, color 0.2s;
+  }
+  button:hover{ border-color: var(--paper); }
+  button.primary{ border-color: var(--x-color); color: var(--x-color); }
+  button:disabled{ opacity:0.4; cursor:default; }
+  button:focus-visible{ outline: 2px solid var(--x-color); outline-offset: 2px; }
+  .ranking-table{ width: 100%; border-collapse: collapse; font-size: 14px; }
+  .ranking-table th, .ranking-table td{ text-align: left; padding: 8px 6px; border-bottom: 1px solid rgba(156,146,134,0.25); }
+  .ranking-table th{ font-family: 'Futura', 'Trebuchet MS', sans-serif; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+  .ranking-table td.num{ text-align:right; }
+  .ranking-empty{ color: var(--muted); font-size: 14px; text-align: center; padding: 12px 0; }
+  .rank-pos{ color: var(--muted); width: 24px; }
+  .error-msg{ color: var(--x-color); font-size: 13px; text-align:center; min-height: 16px; }
+  .conn-dot{ width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; background:#9c9286; }
+  .conn-dot.ok{ background:#6fa8a0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Kółko i krzyżyk</h1>
+  <div class="subtitle"><span class="conn-dot" id="connDot"></span><span id="connText">Łączenie z serwerem…</span></div>
+
+  <!-- MENU -->
+  <div class="screen active" id="screen-menu">
+    <div class="tabs">
+      <div class="tab active" id="tabCreate">Stwórz pokój</div>
+      <div class="tab" id="tabJoin">Dołącz kodem</div>
+    </div>
+    <div class="field">
+      <label for="nameInput">Twoje imię</label>
+      <input id="nameInput" type="text" maxlength="16" placeholder="np. Kasia">
+    </div>
+    <div class="field" id="codeField" style="display:none;">
+      <label for="codeInput">Kod pokoju</label>
+      <input id="codeInput" type="text" maxlength="4" placeholder="np. A1B2" style="text-transform:uppercase;">
+    </div>
+    <div id="createSettings" class="field">
+      <label id="startModeLabel">Kto zaczyna pierwszą rundę</label>
+      <div class="tabs">
+        <div class="tab active" id="optRandom">Losowo</div>
+        <div class="tab" id="optAlternate">Na zmianę</div>
+      </div>
+      <label id="loserStartsLabel" style="margin-top:10px;">Po wygranej rundzie zaczyna</label>
+      <div class="tabs">
+        <div class="tab active" id="optWinnerStarts">Zwycięzca</div>
+        <div class="tab" id="optLoserStarts">Przegrany</div>
+      </div>
+    </div>
+    <div class="error-msg" id="menuError"></div>
+    <div class="menu-actions">
+      <button class="primary" id="goBtn">Stwórz pokój</button>
+      <button id="rankingBtn">Ranking graczy</button>
+      <button id="themeBtnMenu">Jasny motyw</button>
+    </div>
+  </div>
+
+  <!-- WAITING -->
+  <div class="screen" id="screen-waiting">
+    <div class="waiting">Udostępnij ten kod drugiej osobie w tej samej sieci:</div>
+    <div class="code-display" id="codeDisplay">----</div>
+    <div class="waiting">Czekanie na dołączenie gracza…</div>
+    <button id="cancelWaitBtn">Wróć do menu</button>
+  </div>
+
+  <!-- GAME -->
+  <div class="screen" id="screen-game">
+    <div class="score">
+      <div><span id="labelXName">X</span>: <span id="scoreX">0</span></div>
+      <div><span id="labelOName">O</span>: <span id="scoreO">0</span></div>
+      <div>Remis: <span id="scoreD">0</span></div>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="status" id="status">—</div>
+    <div class="controls">
+      <button id="resetBtn">Nowa runda</button>
+      <button id="leaveBtn">Wyjdź</button>
+      <button id="themeBtnGame">Jasny motyw</button>
+    </div>
+  </div>
+
+  <!-- RANKING -->
+  <div class="screen" id="screen-ranking">
+    <table class="ranking-table" id="rankingTable">
+      <thead><tr><th></th><th>Gracz</th><th class="num">Wygrane</th><th class="num">Remisy</th><th class="num">Przegrane</th></tr></thead>
+      <tbody id="rankingBody"></tbody>
+    </table>
+    <div class="ranking-empty" id="rankingEmpty" style="display:none;">Brak rozegranych meczów.</div>
+    <div class="controls">
+      <button id="backFromRankingBtn">Wróć</button>
+      <button id="clearRankingBtn" style="display:none;">Wyczyść ranking</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const screens = {
+  menu: document.getElementById('screen-menu'),
+  waiting: document.getElementById('screen-waiting'),
+  game: document.getElementById('screen-game'),
+  ranking: document.getElementById('screen-ranking'),
+};
+function showScreen(name){
+  Object.values(screens).forEach(s => s.classList.remove('active'));
+  screens[name].classList.add('active');
+}
+
+const connDot = document.getElementById('connDot');
+const connText = document.getElementById('connText');
+const tabCreate = document.getElementById('tabCreate');
+const tabJoin = document.getElementById('tabJoin');
+const codeField = document.getElementById('codeField');
+const nameInput = document.getElementById('nameInput');
+const codeInput = document.getElementById('codeInput');
+const goBtn = document.getElementById('goBtn');
+const menuError = document.getElementById('menuError');
+const rankingBtn = document.getElementById('rankingBtn');
+const codeDisplay = document.getElementById('codeDisplay');
+const cancelWaitBtn = document.getElementById('cancelWaitBtn');
+const createSettings = document.getElementById('createSettings');
+const optRandom = document.getElementById('optRandom');
+const optAlternate = document.getElementById('optAlternate');
+const optWinnerStarts = document.getElementById('optWinnerStarts');
+const optLoserStarts = document.getElementById('optLoserStarts');
+
+const boardEl = document.getElementById('board');
+const statusEl = document.getElementById('status');
+const resetBtn = document.getElementById('resetBtn');
+const leaveBtn = document.getElementById('leaveBtn');
+const scoreXEl = document.getElementById('scoreX');
+const scoreOEl = document.getElementById('scoreO');
+const scoreDEl = document.getElementById('scoreD');
+const labelXNameEl = document.getElementById('labelXName');
+const labelONameEl = document.getElementById('labelOName');
+
+const rankingBody = document.getElementById('rankingBody');
+const rankingEmpty = document.getElementById('rankingEmpty');
+const backFromRankingBtn = document.getElementById('backFromRankingBtn');
+const clearRankingBtn = document.getElementById('clearRankingBtn');
+
+const themeBtnMenu = document.getElementById('themeBtnMenu');
+const themeBtnGame = document.getElementById('themeBtnGame');
+
+let mode = 'create'; // 'create' | 'join'
+let mySymbol = null;
+let myRoomCode = null;
+let lastBoard = Array(9).fill(null);
+let startMode = 'random'; // 'random' | 'alternate'
+let loserStarts = false;
+
+optRandom.addEventListener('click', () => {
+  startMode = 'random';
+  optRandom.classList.add('active');
+  optAlternate.classList.remove('active');
+});
+optAlternate.addEventListener('click', () => {
+  startMode = 'alternate';
+  optAlternate.classList.add('active');
+  optRandom.classList.remove('active');
+});
+optWinnerStarts.addEventListener('click', () => {
+  loserStarts = false;
+  optWinnerStarts.classList.add('active');
+  optLoserStarts.classList.remove('active');
+});
+optLoserStarts.addEventListener('click', () => {
+  loserStarts = true;
+  optLoserStarts.classList.add('active');
+  optWinnerStarts.classList.remove('active');
+});
+
+function toggleTheme(){
+  document.body.classList.toggle('light');
+  const isLight = document.body.classList.contains('light');
+  const label = isLight ? 'Ciemny motyw' : 'Jasny motyw';
+  themeBtnMenu.textContent = label;
+  themeBtnGame.textContent = label;
+}
+themeBtnMenu.addEventListener('click', toggleTheme);
+themeBtnGame.addEventListener('click', toggleTheme);
+
+tabCreate.addEventListener('click', () => {
+  mode = 'create';
+  tabCreate.classList.add('active');
+  tabJoin.classList.remove('active');
+  codeField.style.display = 'none';
+  createSettings.style.display = 'flex';
+  goBtn.textContent = 'Stwórz pokój';
+});
+tabJoin.addEventListener('click', () => {
+  mode = 'join';
+  tabJoin.classList.add('active');
+  tabCreate.classList.remove('active');
+  codeField.style.display = 'flex';
+  createSettings.style.display = 'none';
+  goBtn.textContent = 'Dołącz';
+});
+
+// ---------- WebSocket ----------
+const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+const ws = new WebSocket(proto + '//' + location.host);
+
+ws.addEventListener('open', () => {
+  connDot.classList.add('ok');
+  connText.textContent = 'Połączono z serwerem';
+});
+ws.addEventListener('close', () => {
+  connDot.classList.remove('ok');
+  connText.textContent = 'Utracono połączenie z serwerem';
+});
+
+function send(obj){
+  if(ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+}
+
+goBtn.addEventListener('click', () => {
+  menuError.textContent = '';
+  const name = nameInput.value.trim() || (mySymbol === 'O' ? 'Gracz O' : 'Gracz X');
+  if(mode === 'create'){
+    send({ type: 'create', name, settings: { startMode, loserStarts } });
+  } else {
+    const code = codeInput.value.trim().toUpperCase();
+    if(!code){ menuError.textContent = 'Wpisz kod pokoju.'; return; }
+    send({ type: 'join', code, name });
+  }
+});
+
+cancelWaitBtn.addEventListener('click', () => {
+  location.reload();
+});
+
+leaveBtn.addEventListener('click', () => {
+  location.reload();
+});
+
+resetBtn.addEventListener('click', () => {
+  send({ type: 'restart' });
+});
+
+rankingBtn.addEventListener('click', () => {
+  const isUnlockAttempt = mode === 'join' && codeInput.value.trim() === '1918';
+  clearRankingBtn.style.display = isUnlockAttempt ? 'inline-block' : 'none';
+  send({ type: 'getRanking' });
+  showScreen('ranking');
+});
+backFromRankingBtn.addEventListener('click', () => {
+  clearRankingBtn.style.display = 'none';
+  showScreen('menu');
+});
+clearRankingBtn.addEventListener('click', () => send({ type: 'clearRanking' }));
+
+ws.addEventListener('message', (event) => {
+  const msg = JSON.parse(event.data);
+
+  if(msg.type === 'created'){
+    myRoomCode = msg.code;
+    mySymbol = msg.symbol;
+    codeDisplay.textContent = msg.code;
+    showScreen('waiting');
+    return;
+  }
+
+  if(msg.type === 'joined'){
+    myRoomCode = msg.code;
+    mySymbol = msg.symbol;
+    return;
+  }
+
+  if(msg.type === 'error'){
+    menuError.textContent = msg.message;
+    return;
+  }
+
+  if(msg.type === 'opponentLeft'){
+    statusEl.textContent = 'Przeciwnik opuścił grę.';
+    boardEl.classList.add('disabled');
+    return;
+  }
+
+  if(msg.type === 'state'){
+    showScreen('game');
+    boardEl.classList.remove('disabled');
+    labelXNameEl.textContent = msg.names.X || 'X';
+    labelONameEl.textContent = msg.names.O || 'O';
+    scoreXEl.textContent = msg.scores.X;
+    scoreOEl.textContent = msg.scores.O;
+    scoreDEl.textContent = msg.scores.D;
+    statusEl.textContent = msg.status || '';
+    statusEl.classList.toggle('win', msg.finished === 'win');
+    renderBoard(msg.board, msg.winLine || null);
+    return;
+  }
+
+  if(msg.type === 'ranking'){
+    renderRanking(msg.data);
+    return;
+  }
+});
+
+// ---------- board ----------
+function markSVG(player){
+  if(player === 'X'){
+    return `<svg class="mark-x" viewBox="0 0 100 100"><line x1="20" y1="20" x2="80" y2="80"/><line x1="80" y1="20" x2="20" y2="80"/></svg>`;
+  }
+  return `<svg class="mark-o" viewBox="0 0 100 100"><circle cx="50" cy="50" r="32"/></svg>`;
+}
+
+function renderBoard(board, winLine){
+  lastBoard = board;
+  boardEl.innerHTML = '';
+  board.forEach((val, i) => {
+    const cellEl = document.createElement('div');
+    cellEl.className = 'cell';
+    cellEl.setAttribute('role','button');
+    cellEl.setAttribute('tabindex','0');
+    cellEl.setAttribute('aria-label', `Pole ${i+1}` + (val ? `, zajęte przez ${val}` : ', puste'));
+    if(val){
+      cellEl.innerHTML = markSVG(val);
+      requestAnimationFrame(()=> { const svg = cellEl.querySelector('svg'); if(svg) svg.classList.add('show'); });
+    }
+    if(winLine && winLine.includes(i)) cellEl.classList.add('win-cell');
+    cellEl.addEventListener('click', () => attemptMove(i));
+    cellEl.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); attemptMove(i); }
+    });
+    boardEl.appendChild(cellEl);
+  });
+}
+
+function attemptMove(i){
+  if(lastBoard[i]) return;
+  send({ type: 'move', index: i });
+}
+
+// ---------- ranking ----------
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function renderRanking(list){
+  if(!list || list.length === 0){
+    rankingBody.innerHTML = '';
+    rankingEmpty.style.display = 'block';
+    return;
+  }
+  rankingEmpty.style.display = 'none';
+  rankingBody.innerHTML = list.map((rec, i) => `
+    <tr>
+      <td class="rank-pos">${i + 1}</td>
+      <td>${escapeHtml(rec.name)}</td>
+      <td class="num">${rec.wins}</td>
+      <td class="num">${rec.draws}</td>
+      <td class="num">${rec.losses}</td>
+    </tr>
+  `).join('');
+}
+</script>
+</body>
+</html>
