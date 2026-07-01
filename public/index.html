@@ -5,128 +5,310 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kółko i krzyżyk — LAN</title>
 <style>
-  :root{
-    --bg: #2e2a26; --board: #3c3631; --line: #cdbfa8;
-    --x-color: #e3b04b; --o-color: #6fa8a0; --paper: #f2ead9;
-    --muted: #9c9286; --panel: rgba(255,255,255,0.04);
+  /* ============================================================
+     ZMIENNE KOLORÓW — trzy tryby × dwa schematy (ciemny/jasny)
+     Kontrast: Standard (brak gwarancji), AA (≥4.5:1), AAA (≥7:1)
+     ============================================================ */
+
+  /* --- Standard ciemny (oryginał) --- */
+  :root {
+    --bg: #2e2a26; --board: #3c3631;
+    --x-color: #e3b04b; --o-color: #6fa8a0;
+    --paper: #f2ead9; --muted: #9c9286;
+    --panel: rgba(255,255,255,0.04);
+    --focus-ring: #e3b04b; --focus-width: 2px;
+    --btn-min: 0px; /* bez minimalnej wielkości w trybie standard */
   }
-  body.light{
-    --bg: #f2ead9; --board: #fffdf7; --line: #5a5246;
-    --x-color: #c2762a; --o-color: #2f7d75; --paper: #2e2a26;
-    --muted: #6b6256; --panel: rgba(0,0,0,0.04);
+  /* --- Standard jasny --- */
+  body.light {
+    --bg: #f2ead9; --board: #fffdf7;
+    --x-color: #c2762a; --o-color: #2f7d75;
+    --paper: #2e2a26; --muted: #6b6256;
+    --panel: rgba(0,0,0,0.04);
+    --focus-ring: #c2762a;
   }
+
+  /* --- AA ciemny — kontrast ≥4.5:1 na #1e1b18 --- */
+  body.wcag-aa {
+    --bg: #1e1b18; --board: #2a2520;
+    --x-color: #f5c55a; --o-color: #5ec4bb;
+    --paper: #f0e6d0; --muted: #b0a494;
+    --panel: rgba(255,255,255,0.06);
+    --focus-ring: #f5c55a; --focus-width: 3px;
+    --btn-min: 44px;
+  }
+  /* --- AA jasny --- */
+  body.wcag-aa.light {
+    --bg: #fdf8ef; --board: #ffffff;
+    --x-color: #7a4400; --o-color: #1a5c55;
+    --paper: #1a1612; --muted: #4a4038;
+    --panel: rgba(0,0,0,0.05);
+    --focus-ring: #7a4400;
+  }
+
+  /* --- AAA ciemny — kontrast ≥7:1 na #111 --- */
+  body.wcag-aaa {
+    --bg: #111010; --board: #1c1917;
+    --x-color: #fdd87a; --o-color: #7dddd6;
+    --paper: #f7f0e3; --muted: #c4b8a8;
+    --panel: rgba(255,255,255,0.07);
+    --focus-ring: #fdd87a; --focus-width: 4px;
+    --btn-min: 44px;
+  }
+  /* --- AAA jasny --- */
+  body.wcag-aaa.light {
+    --bg: #ffffff; --board: #f8f4ed;
+    --x-color: #5c3000; --o-color: #0e403b;
+    --paper: #0d0c0b; --muted: #3d3530;
+    --panel: rgba(0,0,0,0.06);
+    --focus-ring: #5c3000;
+  }
+
+  /* ============================================================
+     RESET & BASE
+     ============================================================ */
   * { box-sizing: border-box; }
-  body{
-    margin:0; min-height:100vh; background: var(--bg);
-    display:flex; align-items:center; justify-content:center;
+
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
     font-family: 'Georgia', 'Iowan Old Style', serif; color: var(--paper);
     transition: background-color 0.3s ease, color 0.3s ease;
   }
-  .wrap{ display:flex; flex-direction:column; align-items:center; gap:18px; padding:24px; width: 340px; }
-  h1{
+
+  /* prefers-reduced-motion — wyłącz animacje dla AA i AAA */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+    .cell svg { transition: none !important; }
+  }
+  body.wcag-aa .cell svg,
+  body.wcag-aaa .cell svg {
+    transition: none;
+  }
+
+  /* ============================================================
+     LAYOUT
+     ============================================================ */
+  .wrap {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 18px; padding: 24px; width: 340px;
+  }
+  h1 {
     font-family: 'Futura', 'Trebuchet MS', sans-serif; letter-spacing: 4px;
     text-transform: uppercase; font-size: 22px; font-weight: 600;
     color: var(--paper); margin: 0; text-align: center;
   }
-  .subtitle{ font-size: 12px; color: var(--muted); letter-spacing: 1px; text-align:center; margin-top:-12px; }
-  .screen{ display:none; width:100%; flex-direction:column; align-items:center; gap:16px; }
-  .screen.active{ display:flex; }
-  .field{ width: 100%; display:flex; flex-direction:column; gap: 6px; }
-  .field label{
+  .subtitle {
+    font-size: 12px; color: var(--muted); letter-spacing: 1px;
+    text-align: center; margin-top: -12px;
+  }
+  .screen { display: none; width: 100%; flex-direction: column; align-items: center; gap: 16px; }
+  .screen.active { display: flex; }
+
+  /* ============================================================
+     PRZYCISKI DOSTĘPNOŚCI (prawy górny róg)
+     ============================================================ */
+  .a11y-bar {
+    position: fixed; top: 12px; right: 12px;
+    display: flex; gap: 4px; z-index: 100;
+  }
+  .a11y-btn {
+    font-family: 'Futura', 'Trebuchet MS', sans-serif;
+    font-size: 10px; letter-spacing: 1px; padding: 5px 8px;
+    border-radius: 12px; border: 1px solid var(--muted);
+    background: var(--bg); color: var(--muted); cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+    min-width: 0; min-height: 0;
+  }
+  .a11y-btn.active {
+    border-color: var(--paper); color: var(--paper); font-weight: bold;
+  }
+  .a11y-btn:focus-visible {
+    outline: var(--focus-width, 2px) solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* ============================================================
+     FORMULARZE / POLA
+     ============================================================ */
+  .field { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+  .field label {
     font-family: 'Futura', 'Trebuchet MS', sans-serif; font-size: 11px;
     letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted);
   }
-  .field input{
+  .field input {
     font-family: inherit; font-size: 16px; background: var(--panel);
-    border: 1px solid var(--muted); color: var(--paper); padding: 10px 12px;
-    border-radius: 8px; outline: none; width: 100%;
+    border: 1px solid var(--muted); color: var(--paper);
+    padding: 10px 12px; border-radius: 8px; outline: none; width: 100%;
+    min-height: var(--btn-min, auto);
   }
-  .field input:focus-visible{ outline: 2px solid var(--x-color); outline-offset: 1px; }
-  .tabs{ display:flex; gap:8px; width:100%; }
-  .tab{
-    flex:1; text-align:center; padding:8px; border-radius: 20px; cursor:pointer;
-    border: 1px solid var(--muted); font-size: 12px; letter-spacing:1px;
+  .field input:focus-visible {
+    outline: var(--focus-width, 2px) solid var(--focus-ring);
+    outline-offset: 1px;
   }
-  .tab.active{ border-color: var(--x-color); color: var(--x-color); }
-  .menu-actions{ display:flex; flex-direction:column; gap: 10px; width: 100%; margin-top: 4px; }
-  .code-display{
+
+  /* ============================================================
+     ZAKŁADKI
+     ============================================================ */
+  .tabs { display: flex; gap: 8px; width: 100%; }
+  .tab {
+    flex: 1; text-align: center; padding: 8px; border-radius: 20px;
+    cursor: pointer; border: 1px solid var(--muted); font-size: 12px;
+    letter-spacing: 1px; color: var(--paper);
+    min-height: var(--btn-min, auto);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tab.active { border-color: var(--x-color); color: var(--x-color); }
+  .tab:focus-visible {
+    outline: var(--focus-width, 2px) solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 20px;
+  }
+
+  /* ============================================================
+     MENU
+     ============================================================ */
+  .menu-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 4px; }
+  .code-display {
     font-family: 'Futura', 'Trebuchet MS', sans-serif; font-size: 36px;
-    letter-spacing: 6px; color: var(--x-color); text-align:center;
+    letter-spacing: 6px; color: var(--x-color); text-align: center;
   }
-  .waiting{ font-size: 13px; color: var(--muted); text-align:center; }
-  .status{ font-size: 16px; color: var(--muted); min-height: 22px; letter-spacing: 0.5px; text-align:center; }
-  .status.win{ color: var(--x-color); }
-  .score{ display:flex; gap: 24px; font-size: 13px; color: var(--muted); letter-spacing: 0.5px; }
-  .score span{ color: var(--paper); font-weight:bold; }
-  .board{
+  .waiting { font-size: 13px; color: var(--muted); text-align: center; }
+
+  /* ============================================================
+     STATUS GRY
+     ============================================================ */
+  .status {
+    font-size: 16px; color: var(--muted); min-height: 22px;
+    letter-spacing: 0.5px; text-align: center;
+  }
+  .status.win { color: var(--x-color); }
+  .score { display: flex; gap: 24px; font-size: 13px; color: var(--muted); letter-spacing: 0.5px; }
+  .score span { color: var(--paper); font-weight: bold; }
+
+  /* ============================================================
+     PLANSZA
+     ============================================================ */
+  .board {
     position: relative; width: 300px; height: 300px; background: var(--board);
     border-radius: 4px; box-shadow: 0 10px 30px rgba(0,0,0,0.4);
     display: grid; grid-template-columns: repeat(3,1fr); grid-template-rows: repeat(3,1fr);
     transition: background-color 0.3s ease;
   }
-  .board.disabled{ opacity: 0.6; }
-  .cell{
-    position: relative; display:flex; align-items:center; justify-content:center;
-    cursor:pointer; user-select:none; border: 1px solid rgba(205,191,168,0.18);
+  .board.disabled { opacity: 0.6; pointer-events: none; }
+  .cell {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none; border: 1px solid rgba(205,191,168,0.18);
+    min-width: 0; min-height: 0; /* siatka dyktuje rozmiar — min 100px, więc >44px */
   }
-  .cell svg{ width: 56%; height: 56%; opacity: 0; transform: scale(0.6); transition: opacity 0.25s ease, transform 0.25s ease; }
-  .cell svg.show{ opacity: 1; transform: scale(1); }
-  .cell.win-cell{ background: rgba(227,176,75,0.08); }
-  .mark-x line{ stroke: var(--x-color); stroke-width: 9; stroke-linecap: round; }
-  .mark-o circle{ stroke: var(--o-color); stroke-width: 9; fill: none; }
-  .controls{ display:flex; gap:10px; align-items:center; flex-wrap: wrap; justify-content:center; }
-  button{
-    font-family: inherit; background: transparent; border: 1px solid var(--muted);
-    color: var(--paper); padding: 8px 18px; border-radius: 20px; font-size: 13px;
-    letter-spacing: 1px; cursor: pointer; transition: border-color 0.2s, color 0.2s;
+  .cell:focus-visible {
+    outline: var(--focus-width, 2px) solid var(--focus-ring);
+    outline-offset: -3px;
+    border-radius: 2px;
   }
-  button:hover{ border-color: var(--paper); }
-  button.primary{ border-color: var(--x-color); color: var(--x-color); }
-  button:disabled{ opacity:0.4; cursor:default; }
-  button:focus-visible{ outline: 2px solid var(--x-color); outline-offset: 2px; }
-  .ranking-table{ width: 100%; border-collapse: collapse; font-size: 14px; }
-  .ranking-table th, .ranking-table td{ text-align: left; padding: 8px 6px; border-bottom: 1px solid rgba(156,146,134,0.25); }
-  .ranking-table th{ font-family: 'Futura', 'Trebuchet MS', sans-serif; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
-  .ranking-table td.num{ text-align:right; }
-  .ranking-empty{ color: var(--muted); font-size: 14px; text-align: center; padding: 12px 0; }
-  .rank-pos{ color: var(--muted); width: 24px; }
-  .error-msg{ color: var(--x-color); font-size: 13px; text-align:center; min-height: 16px; }
-  .conn-dot{ width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; background:#9c9286; }
-  .conn-dot.ok{ background:#6fa8a0; }
+  .cell svg {
+    width: 56%; height: 56%;
+    opacity: 0; transform: scale(0.6);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  .cell svg.show { opacity: 1; transform: scale(1); }
+  .cell.win-cell { background: rgba(227,176,75,0.08); }
+  .mark-x line { stroke: var(--x-color); stroke-width: 9; stroke-linecap: round; }
+  .mark-o circle { stroke: var(--o-color); stroke-width: 9; fill: none; }
+
+  /* ============================================================
+     PRZYCISKI
+     ============================================================ */
+  .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  button {
+    font-family: inherit; background: transparent;
+    border: 1px solid var(--muted); color: var(--paper);
+    padding: 8px 18px; border-radius: 20px; font-size: 13px;
+    letter-spacing: 1px; cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+    min-height: var(--btn-min, auto);
+    min-width: var(--btn-min, auto);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  button:hover { border-color: var(--paper); }
+  button.primary { border-color: var(--x-color); color: var(--x-color); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button:focus-visible {
+    outline: var(--focus-width, 2px) solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* ============================================================
+     RANKING
+     ============================================================ */
+  .ranking-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .ranking-table th, .ranking-table td {
+    text-align: left; padding: 8px 6px;
+    border-bottom: 1px solid rgba(156,146,134,0.25);
+  }
+  .ranking-table th {
+    font-family: 'Futura', 'Trebuchet MS', sans-serif; font-size: 10px;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted);
+  }
+  .ranking-table td.num { text-align: right; }
+  .ranking-empty { color: var(--muted); font-size: 14px; text-align: center; padding: 12px 0; }
+  .rank-pos { color: var(--muted); width: 24px; }
+
+  /* ============================================================
+     RESZTA
+     ============================================================ */
+  .error-msg { color: var(--x-color); font-size: 13px; text-align: center; min-height: 16px; }
+  .conn-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block; margin-right: 6px; background: #9c9286;
+  }
+  .conn-dot.ok { background: #6fa8a0; }
 </style>
 </head>
 <body>
+
+<!-- PASEK DOSTĘPNOŚCI -->
+<nav class="a11y-bar" aria-label="Poziom dostępności">
+  <button class="a11y-btn active" id="btnA11y" aria-label="Tryb dostępności: Standard. Kliknij aby zmienić.">Standard</button>
+</nav>
+
 <div class="wrap">
   <h1>Kółko i krzyżyk</h1>
-  <div class="subtitle"><span class="conn-dot" id="connDot"></span><span id="connText">Łączenie z serwerem…</span></div>
+  <div class="subtitle">
+    <span class="conn-dot" id="connDot"></span>
+    <span id="connText">Łączenie z serwerem…</span>
+  </div>
 
   <!-- MENU -->
-  <div class="screen active" id="screen-menu">
-    <div class="tabs">
-      <div class="tab active" id="tabCreate">Stwórz pokój</div>
-      <div class="tab" id="tabJoin">Dołącz kodem</div>
+  <div class="screen active" id="screen-menu" role="main">
+    <div class="tabs" role="tablist" aria-label="Tryb gry">
+      <div class="tab active" id="tabCreate" role="tab" aria-selected="true" tabindex="0">Stwórz pokój</div>
+      <div class="tab" id="tabJoin" role="tab" aria-selected="false" tabindex="0">Dołącz kodem</div>
     </div>
     <div class="field">
       <label for="nameInput">Twoje imię</label>
-      <input id="nameInput" type="text" maxlength="16" placeholder="np. Kasia">
+      <input id="nameInput" type="text" maxlength="16" placeholder="np. Kasia" autocomplete="nickname">
     </div>
     <div class="field" id="codeField" style="display:none;">
       <label for="codeInput">Kod pokoju</label>
-      <input id="codeInput" type="text" maxlength="4" placeholder="np. A1B2" style="text-transform:uppercase;">
+      <input id="codeInput" type="text" maxlength="4" placeholder="np. A1B2"
+             style="text-transform:uppercase;" autocomplete="off"
+             aria-describedby="codeHint">
+      <span id="codeHint" style="font-size:11px;color:var(--muted);">4-znakowy kod od osoby tworzącej pokój</span>
     </div>
-    <div id="createSettings" class="field">
+    <div id="createSettings" class="field" aria-label="Ustawienia gry">
       <label id="startModeLabel">Kto zaczyna pierwszą rundę</label>
-      <div class="tabs">
-        <div class="tab active" id="optRandom">Losowo</div>
-        <div class="tab" id="optAlternate">Na zmianę</div>
+      <div class="tabs" role="group" aria-labelledby="startModeLabel">
+        <div class="tab active" id="optRandom" role="radio" aria-checked="true" tabindex="0">Losowo</div>
+        <div class="tab" id="optAlternate" role="radio" aria-checked="false" tabindex="0">Na zmianę</div>
       </div>
       <label id="loserStartsLabel" style="margin-top:10px;">Po wygranej rundzie zaczyna</label>
-      <div class="tabs">
-        <div class="tab active" id="optWinnerStarts">Zwycięzca</div>
-        <div class="tab" id="optLoserStarts">Przegrany</div>
+      <div class="tabs" role="group" aria-labelledby="loserStartsLabel">
+        <div class="tab active" id="optWinnerStarts" role="radio" aria-checked="true" tabindex="0">Zwycięzca</div>
+        <div class="tab" id="optLoserStarts" role="radio" aria-checked="false" tabindex="0">Przegrany</div>
       </div>
     </div>
-    <div class="error-msg" id="menuError"></div>
+    <div class="error-msg" id="menuError" role="alert" aria-live="assertive"></div>
     <div class="menu-actions">
       <button class="primary" id="goBtn">Stwórz pokój</button>
       <button id="rankingBtn">Ranking graczy</button>
@@ -135,22 +317,22 @@
   </div>
 
   <!-- WAITING -->
-  <div class="screen" id="screen-waiting">
-    <div class="waiting">Udostępnij ten kod drugiej osobie w tej samej sieci:</div>
-    <div class="code-display" id="codeDisplay">----</div>
-    <div class="waiting">Czekanie na dołączenie gracza…</div>
+  <div class="screen" id="screen-waiting" aria-live="polite">
+    <div class="waiting">Udostępnij ten kod drugiej osobie:</div>
+    <div class="code-display" id="codeDisplay" aria-label="Kod pokoju">----</div>
+    <div class="waiting" aria-live="polite">Czekanie na dołączenie gracza…</div>
     <button id="cancelWaitBtn">Wróć do menu</button>
   </div>
 
   <!-- GAME -->
   <div class="screen" id="screen-game">
-    <div class="score">
-      <div><span id="labelXName">X</span>: <span id="scoreX">0</span></div>
-      <div><span id="labelOName">O</span>: <span id="scoreO">0</span></div>
+    <div class="score" aria-label="Wyniki">
+      <div><span id="labelXName">X</span>: <span id="scoreX" aria-label="wygranych">0</span></div>
+      <div><span id="labelOName">O</span>: <span id="scoreO" aria-label="wygranych">0</span></div>
       <div>Remis: <span id="scoreD">0</span></div>
     </div>
-    <div class="board" id="board"></div>
-    <div class="status" id="status">—</div>
+    <div class="board" id="board" role="grid" aria-label="Plansza do gry"></div>
+    <div class="status" id="status" role="status" aria-live="polite" aria-atomic="true">—</div>
     <div class="controls">
       <button id="resetBtn">Nowa runda</button>
       <button id="leaveBtn">Wyjdź</button>
@@ -160,8 +342,16 @@
 
   <!-- RANKING -->
   <div class="screen" id="screen-ranking">
-    <table class="ranking-table" id="rankingTable">
-      <thead><tr><th></th><th>Gracz</th><th class="num">Wygrane</th><th class="num">Remisy</th><th class="num">Przegrane</th></tr></thead>
+    <table class="ranking-table" id="rankingTable" aria-label="Ranking graczy">
+      <thead>
+        <tr>
+          <th scope="col">#</th>
+          <th scope="col">Gracz</th>
+          <th scope="col" class="num">Wygrane</th>
+          <th scope="col" class="num">Remisy</th>
+          <th scope="col" class="num">Przegrane</th>
+        </tr>
+      </thead>
       <tbody id="rankingBody"></tbody>
     </table>
     <div class="ranking-empty" id="rankingEmpty" style="display:none;">Brak rozegranych meczów.</div>
@@ -173,82 +363,110 @@
 </div>
 
 <script>
+// ================================================================
+// DOSTĘPNOŚĆ — jeden przycisk cykliczny Standard → AA → AAA → Standard
+// ================================================================
+const btnA11y  = document.getElementById('btnA11y');
+const a11yLevels = ['standard', 'aa', 'aaa'];
+const a11yLabels = { standard: 'Standard', aa: 'AA', aaa: 'AAA' };
+let currentA11y = 'standard';
+
+function setA11y(level) {
+  currentA11y = level;
+  document.body.classList.remove('wcag-aa', 'wcag-aaa');
+  if (level === 'aa')  document.body.classList.add('wcag-aa');
+  if (level === 'aaa') document.body.classList.add('wcag-aaa');
+  const label = a11yLabels[level];
+  const nextLevel = a11yLevels[(a11yLevels.indexOf(level) + 1) % a11yLevels.length];
+  btnA11y.textContent = label;
+  btnA11y.setAttribute('aria-label', `Tryb dostępności: ${label}. Kliknij aby przełączyć na ${a11yLabels[nextLevel]}.`);
+  try { localStorage.setItem('a11y', level); } catch(e) {}
+}
+
+btnA11y.addEventListener('click', () => {
+  const next = a11yLevels[(a11yLevels.indexOf(currentA11y) + 1) % a11yLevels.length];
+  setA11y(next);
+});
+
+// Przywróć ostatni wybór
+try {
+  const saved = localStorage.getItem('a11y');
+  if (saved && a11yLevels.includes(saved)) setA11y(saved);
+} catch(e) {}
+
+// ================================================================
+// NAWIGACJA KLAWIATURĄ — taby jako zakładki (Enter/Space)
+// ================================================================
+document.querySelectorAll('[role="tab"], [role="radio"]').forEach(el => {
+  el.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+  });
+});
+
+// ================================================================
+// EKRANY
+// ================================================================
 const screens = {
-  menu: document.getElementById('screen-menu'),
+  menu:    document.getElementById('screen-menu'),
   waiting: document.getElementById('screen-waiting'),
-  game: document.getElementById('screen-game'),
+  game:    document.getElementById('screen-game'),
   ranking: document.getElementById('screen-ranking'),
 };
-function showScreen(name){
+function showScreen(name) {
   Object.values(screens).forEach(s => s.classList.remove('active'));
   screens[name].classList.add('active');
 }
 
-const connDot = document.getElementById('connDot');
-const connText = document.getElementById('connText');
-const tabCreate = document.getElementById('tabCreate');
-const tabJoin = document.getElementById('tabJoin');
-const codeField = document.getElementById('codeField');
-const nameInput = document.getElementById('nameInput');
-const codeInput = document.getElementById('codeInput');
-const goBtn = document.getElementById('goBtn');
-const menuError = document.getElementById('menuError');
-const rankingBtn = document.getElementById('rankingBtn');
-const codeDisplay = document.getElementById('codeDisplay');
-const cancelWaitBtn = document.getElementById('cancelWaitBtn');
-const createSettings = document.getElementById('createSettings');
-const optRandom = document.getElementById('optRandom');
-const optAlternate = document.getElementById('optAlternate');
-const optWinnerStarts = document.getElementById('optWinnerStarts');
-const optLoserStarts = document.getElementById('optLoserStarts');
-
-const boardEl = document.getElementById('board');
-const statusEl = document.getElementById('status');
-const resetBtn = document.getElementById('resetBtn');
-const leaveBtn = document.getElementById('leaveBtn');
-const scoreXEl = document.getElementById('scoreX');
-const scoreOEl = document.getElementById('scoreO');
-const scoreDEl = document.getElementById('scoreD');
-const labelXNameEl = document.getElementById('labelXName');
-const labelONameEl = document.getElementById('labelOName');
-
-const rankingBody = document.getElementById('rankingBody');
-const rankingEmpty = document.getElementById('rankingEmpty');
+// ================================================================
+// REFERENCJE DO ELEMENTÓW
+// ================================================================
+const connDot          = document.getElementById('connDot');
+const connText         = document.getElementById('connText');
+const tabCreate        = document.getElementById('tabCreate');
+const tabJoin          = document.getElementById('tabJoin');
+const codeField        = document.getElementById('codeField');
+const nameInput        = document.getElementById('nameInput');
+const codeInput        = document.getElementById('codeInput');
+const goBtn            = document.getElementById('goBtn');
+const menuError        = document.getElementById('menuError');
+const rankingBtn       = document.getElementById('rankingBtn');
+const codeDisplay      = document.getElementById('codeDisplay');
+const cancelWaitBtn    = document.getElementById('cancelWaitBtn');
+const createSettings   = document.getElementById('createSettings');
+const optRandom        = document.getElementById('optRandom');
+const optAlternate     = document.getElementById('optAlternate');
+const optWinnerStarts  = document.getElementById('optWinnerStarts');
+const optLoserStarts   = document.getElementById('optLoserStarts');
+const boardEl          = document.getElementById('board');
+const statusEl         = document.getElementById('status');
+const resetBtn         = document.getElementById('resetBtn');
+const leaveBtn         = document.getElementById('leaveBtn');
+const scoreXEl         = document.getElementById('scoreX');
+const scoreOEl         = document.getElementById('scoreO');
+const scoreDEl         = document.getElementById('scoreD');
+const labelXNameEl     = document.getElementById('labelXName');
+const labelONameEl     = document.getElementById('labelOName');
+const rankingBody      = document.getElementById('rankingBody');
+const rankingEmpty     = document.getElementById('rankingEmpty');
 const backFromRankingBtn = document.getElementById('backFromRankingBtn');
-const clearRankingBtn = document.getElementById('clearRankingBtn');
+const clearRankingBtn  = document.getElementById('clearRankingBtn');
+const themeBtnMenu     = document.getElementById('themeBtnMenu');
+const themeBtnGame     = document.getElementById('themeBtnGame');
 
-const themeBtnMenu = document.getElementById('themeBtnMenu');
-const themeBtnGame = document.getElementById('themeBtnGame');
-
-let mode = 'create'; // 'create' | 'join'
-let mySymbol = null;
+// ================================================================
+// STAN
+// ================================================================
+let mode       = 'create';
+let mySymbol   = null;
 let myRoomCode = null;
-let lastBoard = Array(9).fill(null);
-let startMode = 'random'; // 'random' | 'alternate'
+let lastBoard  = Array(9).fill(null);
+let startMode  = 'random';
 let loserStarts = false;
 
-optRandom.addEventListener('click', () => {
-  startMode = 'random';
-  optRandom.classList.add('active');
-  optAlternate.classList.remove('active');
-});
-optAlternate.addEventListener('click', () => {
-  startMode = 'alternate';
-  optAlternate.classList.add('active');
-  optRandom.classList.remove('active');
-});
-optWinnerStarts.addEventListener('click', () => {
-  loserStarts = false;
-  optWinnerStarts.classList.add('active');
-  optLoserStarts.classList.remove('active');
-});
-optLoserStarts.addEventListener('click', () => {
-  loserStarts = true;
-  optLoserStarts.classList.add('active');
-  optWinnerStarts.classList.remove('active');
-});
-
-function toggleTheme(){
+// ================================================================
+// MOTYW (ciemny/jasny)
+// ================================================================
+function toggleTheme() {
   document.body.classList.toggle('light');
   const isLight = document.body.classList.contains('light');
   const label = isLight ? 'Ciemny motyw' : 'Jasny motyw';
@@ -258,26 +476,45 @@ function toggleTheme(){
 themeBtnMenu.addEventListener('click', toggleTheme);
 themeBtnGame.addEventListener('click', toggleTheme);
 
+// ================================================================
+// ZAKŁADKI TRYBU GRY
+// ================================================================
 tabCreate.addEventListener('click', () => {
   mode = 'create';
-  tabCreate.classList.add('active');
-  tabJoin.classList.remove('active');
+  tabCreate.classList.add('active'); tabCreate.setAttribute('aria-selected','true');
+  tabJoin.classList.remove('active'); tabJoin.setAttribute('aria-selected','false');
   codeField.style.display = 'none';
   createSettings.style.display = 'flex';
   goBtn.textContent = 'Stwórz pokój';
 });
 tabJoin.addEventListener('click', () => {
   mode = 'join';
-  tabJoin.classList.add('active');
-  tabCreate.classList.remove('active');
+  tabJoin.classList.add('active'); tabJoin.setAttribute('aria-selected','true');
+  tabCreate.classList.remove('active'); tabCreate.setAttribute('aria-selected','false');
   codeField.style.display = 'flex';
   createSettings.style.display = 'none';
   goBtn.textContent = 'Dołącz';
 });
 
-// ---------- WebSocket ----------
+// ================================================================
+// OPCJE GRY
+// ================================================================
+function selectRadio(activeEl, inactiveEl, val, setter) {
+  activeEl.classList.add('active'); activeEl.setAttribute('aria-checked','true');
+  inactiveEl.classList.remove('active'); inactiveEl.setAttribute('aria-checked','false');
+  setter(val);
+}
+optRandom.addEventListener('click',       () => selectRadio(optRandom,      optAlternate,   'random',    v => startMode = v));
+optAlternate.addEventListener('click',    () => selectRadio(optAlternate,   optRandom,      'alternate', v => startMode = v));
+optWinnerStarts.addEventListener('click', () => selectRadio(optWinnerStarts, optLoserStarts, false,      v => loserStarts = v));
+optLoserStarts.addEventListener('click',  () => selectRadio(optLoserStarts,  optWinnerStarts, true,      v => loserStarts = v));
+
+// ================================================================
+// WEBSOCKET
+// ================================================================
 const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-const ws = new WebSocket(proto + '//' + location.host);
+const wsHost = location.host || 'localhost:3000';
+const ws = new WebSocket(proto + '//' + wsHost);
 
 ws.addEventListener('open', () => {
   connDot.classList.add('ok');
@@ -288,37 +525,32 @@ ws.addEventListener('close', () => {
   connText.textContent = 'Utracono połączenie z serwerem';
 });
 
-function send(obj){
-  if(ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+function send(obj) {
+  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
 }
 
+// ================================================================
+// PRZYCISKI MENU
+// ================================================================
 goBtn.addEventListener('click', () => {
   menuError.textContent = '';
-  const name = nameInput.value.trim() || (mySymbol === 'O' ? 'Gracz O' : 'Gracz X');
-  if(mode === 'create'){
+  const name = nameInput.value.trim() || 'Gracz';
+  if (mode === 'create') {
     send({ type: 'create', name, settings: { startMode, loserStarts } });
   } else {
     const code = codeInput.value.trim().toUpperCase();
-    if(!code){ menuError.textContent = 'Wpisz kod pokoju.'; return; }
+    if (!code) { menuError.textContent = 'Wpisz kod pokoju.'; return; }
     send({ type: 'join', code, name });
   }
 });
 
-cancelWaitBtn.addEventListener('click', () => {
-  location.reload();
-});
-
-leaveBtn.addEventListener('click', () => {
-  location.reload();
-});
-
-resetBtn.addEventListener('click', () => {
-  send({ type: 'restart' });
-});
+cancelWaitBtn.addEventListener('click', () => location.reload());
+leaveBtn.addEventListener('click',      () => location.reload());
+resetBtn.addEventListener('click',      () => send({ type: 'restart' }));
 
 rankingBtn.addEventListener('click', () => {
-  const isUnlockAttempt = mode === 'join' && codeInput.value.trim() === '1918';
-  clearRankingBtn.style.display = isUnlockAttempt ? 'inline-block' : 'none';
+  const isUnlock = mode === 'join' && codeInput.value.trim() === '1918';
+  clearRankingBtn.style.display = isUnlock ? 'inline-flex' : 'none';
   send({ type: 'getRanking' });
   showScreen('ranking');
 });
@@ -328,35 +560,34 @@ backFromRankingBtn.addEventListener('click', () => {
 });
 clearRankingBtn.addEventListener('click', () => send({ type: 'clearRanking' }));
 
+// ================================================================
+// WIADOMOŚCI Z SERWERA
+// ================================================================
 ws.addEventListener('message', (event) => {
   const msg = JSON.parse(event.data);
 
-  if(msg.type === 'created'){
+  if (msg.type === 'created') {
     myRoomCode = msg.code;
-    mySymbol = msg.symbol;
+    mySymbol   = msg.symbol;
     codeDisplay.textContent = msg.code;
     showScreen('waiting');
     return;
   }
-
-  if(msg.type === 'joined'){
+  if (msg.type === 'joined') {
     myRoomCode = msg.code;
-    mySymbol = msg.symbol;
+    mySymbol   = msg.symbol;
     return;
   }
-
-  if(msg.type === 'error'){
+  if (msg.type === 'error') {
     menuError.textContent = msg.message;
     return;
   }
-
-  if(msg.type === 'opponentLeft'){
+  if (msg.type === 'opponentLeft') {
     statusEl.textContent = 'Przeciwnik opuścił grę.';
     boardEl.classList.add('disabled');
     return;
   }
-
-  if(msg.type === 'state'){
+  if (msg.type === 'state') {
     showScreen('game');
     boardEl.classList.remove('disabled');
     labelXNameEl.textContent = msg.names.X || 'X';
@@ -366,60 +597,79 @@ ws.addEventListener('message', (event) => {
     scoreDEl.textContent = msg.scores.D;
     statusEl.textContent = msg.status || '';
     statusEl.classList.toggle('win', msg.finished === 'win');
-    renderBoard(msg.board, msg.winLine || null);
+    renderBoard(msg.board, msg.winLine || null, msg.current);
     return;
   }
-
-  if(msg.type === 'ranking'){
+  if (msg.type === 'ranking') {
     renderRanking(msg.data);
     return;
   }
 });
 
-// ---------- board ----------
-function markSVG(player){
-  if(player === 'X'){
-    return `<svg class="mark-x" viewBox="0 0 100 100"><line x1="20" y1="20" x2="80" y2="80"/><line x1="80" y1="20" x2="20" y2="80"/></svg>`;
+// ================================================================
+// PLANSZA
+// ================================================================
+function markSVG(player) {
+  if (player === 'X') {
+    return `<svg class="mark-x" viewBox="0 0 100 100" aria-hidden="true">
+      <line x1="20" y1="20" x2="80" y2="80"/>
+      <line x1="80" y1="20" x2="20" y2="80"/>
+    </svg>`;
   }
-  return `<svg class="mark-o" viewBox="0 0 100 100"><circle cx="50" cy="50" r="32"/></svg>`;
+  return `<svg class="mark-o" viewBox="0 0 100 100" aria-hidden="true">
+    <circle cx="50" cy="50" r="32"/>
+  </svg>`;
 }
 
-function renderBoard(board, winLine){
+function cellLabel(val, i, currentPlayer, winLine) {
+  const pos = `Pole ${i + 1}`;
+  if (val) return `${pos}, zajęte przez ${val}`;
+  if (winLine) return pos;
+  return `${pos}, puste — ruch gracza ${currentPlayer}`;
+}
+
+function renderBoard(board, winLine, currentPlayer) {
   lastBoard = board;
   boardEl.innerHTML = '';
   board.forEach((val, i) => {
     const cellEl = document.createElement('div');
     cellEl.className = 'cell';
-    cellEl.setAttribute('role','button');
-    cellEl.setAttribute('tabindex','0');
-    cellEl.setAttribute('aria-label', `Pole ${i+1}` + (val ? `, zajęte przez ${val}` : ', puste'));
-    if(val){
+    cellEl.setAttribute('role', 'gridcell');
+    cellEl.setAttribute('tabindex', val ? '-1' : '0');
+    cellEl.setAttribute('aria-label', cellLabel(val, i, currentPlayer, winLine));
+    if (val) {
       cellEl.innerHTML = markSVG(val);
-      requestAnimationFrame(()=> { const svg = cellEl.querySelector('svg'); if(svg) svg.classList.add('show'); });
+      // animacja — tylko gdy brak prefers-reduced-motion i nie AA/AAA (bo te mają wyłączone)
+      requestAnimationFrame(() => {
+        const svg = cellEl.querySelector('svg');
+        if (svg) svg.classList.add('show');
+      });
     }
-    if(winLine && winLine.includes(i)) cellEl.classList.add('win-cell');
-    cellEl.addEventListener('click', () => attemptMove(i));
-    cellEl.addEventListener('keydown', (e) => {
-      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); attemptMove(i); }
+    if (winLine && winLine.includes(i)) cellEl.classList.add('win-cell');
+    cellEl.addEventListener('click',   () => attemptMove(i));
+    cellEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); attemptMove(i); }
     });
     boardEl.appendChild(cellEl);
   });
 }
 
-function attemptMove(i){
-  if(lastBoard[i]) return;
+function attemptMove(i) {
+  if (lastBoard[i]) return;
   send({ type: 'move', index: i });
 }
 
-// ---------- ranking ----------
-function escapeHtml(str){
+// ================================================================
+// RANKING
+// ================================================================
+function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
 }
 
-function renderRanking(list){
-  if(!list || list.length === 0){
+function renderRanking(list) {
+  if (!list || list.length === 0) {
     rankingBody.innerHTML = '';
     rankingEmpty.style.display = 'block';
     return;
